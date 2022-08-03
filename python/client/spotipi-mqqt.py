@@ -1,9 +1,11 @@
 import paho.mqtt.client as mqtt
-import sys,os
+import sys
+import os
 import configparser
 import dbus
 import time
 import json
+from multiprocessing.connection import Client
 
 dir = os.path.dirname(__file__)
 filename = os.path.join(dir, '../../config/rgb_options.ini')
@@ -12,6 +14,9 @@ filename = os.path.join(dir, '../../config/rgb_options.ini')
 config = configparser.ConfigParser()
 config.read(filename)
 
+brightness = str(config['DEFAULT']['brightness'])
+fullstate = {"state": "ON", "brightness": brightness}
+
 sysbus = dbus.SystemBus()
 systemd1 = sysbus.get_object('org.freedesktop.systemd1', '/org/freedesktop/systemd1')
 manager = dbus.Interface(systemd1, 'org.freedesktop.systemd1.Manager')
@@ -19,6 +24,8 @@ service = sysbus.get_object('org.freedesktop.systemd1', object_path=manager.GetU
 interface = dbus.Interface(service, dbus_interface='org.freedesktop.DBus.Properties')
 
 client_name = "spotipi"
+username = "homeassistant"
+client_password = "xxx"
 matrix_name = "rgb_matrix"
 base_topic = "homeassistant/light/rgb-matrix"
 config_topic = base_topic + "/config"
@@ -35,34 +42,48 @@ config_payload = '''{
   "brightness_scale": 100
 }'''
 
+address = ('localhost', 6000)
 
-def on_message(client, userdata, message):
+
+def on_message(mqtt_client, userdata, message):
     print("message received ", str(message.payload.decode("utf-8")))
     print("message topic=", message.topic)
     print("message qos=", message.qos)
     print("message retain flag=", message.retain)
-    fullstate = {"state": "OFF", "brightness": 0}
+    global fullstate
+    global brightness
+    # fullstate = {"state": "OFF", "brightness": 0}
     unit_state = interface.Get('org.freedesktop.systemd1.Unit', 'ActiveState')
     if unit_state == 'active':
         brightness = str(config['DEFAULT']['brightness'])
         fullstate = {"state": "ON", "brightness": int(brightness)}
+    else:
+        brightness = str(0)
+        fullstate = {"state": "OFF", "brightness": int(brightness)}
     # print('active_state: ' + active_state)
-    client.publish(state_topic, json.dumps(fullstate), retain=True)
+    mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
 
 
-def on_set_message(client, userdata, message):
+def on_set_message(mqtt_client, userdata, message):
+    global fullstate
+    global brightness
     print("in set topic")
     payload = json.loads(message.payload.decode("utf-8"))
     if "brightness" in payload:
         brightness = str(payload["brightness"])
         print("Set brightness to " + brightness)
+        # conn = Client(address, authkey=b'a secret password')
+        # conn.send(['brightness', int(brightness)])
+        # conn.close()
+        # fullstate = {"state": "ON", "brightness": int(brightness)}
+        # client.publish(state_topic, json.dumps(fullstate), retain=True)
         config.set('DEFAULT', 'brightness', brightness)
         with open(filename, 'w') as configfile:
             config.write(configfile)
-            #os.close(configfile)
+            # os.close(configfile)
             job = manager.RestartUnit('spotipi.service', 'fail')
             fullstate = {"state": "ON", "brightness": int(brightness)}
-            client.publish(state_topic, json.dumps(fullstate), retain=True)
+            mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
     elif "state" in payload:
         state = payload["state"]
         if state == "ON":
@@ -70,29 +91,41 @@ def on_set_message(client, userdata, message):
             brightness = str(config['DEFAULT']['brightness'])
             job = manager.StartUnit('spotipi.service', 'replace')
             fullstate = {"state": "ON", "brightness": int(brightness)}
-            client.publish(state_topic, json.dumps(fullstate), retain=True)
+            mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
         elif state == "OFF":
             print("Turning off")
             brightness = str(0)
             job = manager.StopUnit('spotipi.service', 'replace')
             fullstate = {"state": "OFF", "brightness": int(brightness)}
-            client.publish(state_topic, json.dumps(fullstate), retain=True)
+            mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
 
 
-def on_disconnect(client, userdata, rc):
+def on_disconnect(mqtt_client, userdata, rc):
     if rc != 0:
         print("Unexpected MQTT disconnection. Will auto-reconnect")
 
 
+def on_connect(mqtt_client, userdata, flags, rc):
+    global fullstate
+    if rc != 0:
+        print("Bad connection. Responding anyways.")
+    else:
+        print("Connected.")
+    client.subscribe(set_topic)
+    mqtt_client.publish(config_topic, config_payload, retain=True)
+    mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
+
+
+
 client = mqtt.Client(client_name)
+client.username_pw_set(username=username, password=client_password)
 client.on_message=on_message
 client.message_callback_add(set_topic, on_set_message)
 client.on_disconnect = on_disconnect
-client.connect("nanopi")
+client.on_connect = on_connect
+client.connect("homeassistant")
 client.subscribe(set_topic)
 client.publish(config_topic, config_payload, retain=True)
-brightness = str(config['DEFAULT']['brightness'])
-fullstate = {"state": "ON", "brightness": brightness}
 client.publish(state_topic, json.dumps(fullstate), retain=True)
 
 try:
