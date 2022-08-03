@@ -38,6 +38,8 @@ class WeatherDisplay:
 		response = requests.get("https://api.openweathermap.org/data/2.5/onecall", params=self.query, timeout=5)
 		self.response_json = response.json()
 		self.last_weather_refresh = datetime.now()
+		self.last_temp_display_toggle = datetime.now()
+		self.display_temp = False
 
 	def get_icon(self, icon_name):
 		icon_path = iconMap[icon_name]
@@ -56,6 +58,9 @@ class WeatherDisplay:
 			self.refresh_weather()
 			self.last_weather_refresh = now
 			print('refreshed')
+		if now - self.last_temp_display_toggle > timedelta(seconds=5):
+			self.display_temp = ~self.display_temp
+			self.last_temp_display_toggle = now
 		length = self.display_time(canvas, now)
 		self.display_weather(canvas, length)
 
@@ -81,9 +86,13 @@ class WeatherDisplay:
 		for i in range(1, 5):
 			icon_name = self.response_json['hourly'][i]['weather'][0]['icon']
 			time_text = datetime.fromtimestamp(self.response_json['hourly'][i]['dt']).strftime('%Hh')
+			if self.display_temp:
+				time_text = f"{round(self.response_json['hourly'][i]['temp'])}°"
 			canvas.SetImage(self.get_icon(icon_name), 16 * (i - 1), 16)
 			graphics.DrawText(canvas, self.font_small, 16 * (i - 1) + 2, 40 - 2, text_color, time_text)
 			icon_name_daily = self.response_json['daily'][i]['weather'][0]['icon']
 			time_text_daily = datetime.fromtimestamp(self.response_json['daily'][i]['dt']).strftime('%a')
+			if self.display_temp:
+				time_text_daily = f"{round(self.response_json['daily'][i]['temp']['day'])}°"
 			canvas.SetImage(self.get_icon(icon_name_daily), 16 * (i - 1), 40)
 			graphics.DrawText(canvas, self.font_small, 16 * (i - 1) + 2, 64 - 2, text_color, time_text_daily)
