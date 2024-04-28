@@ -72,16 +72,18 @@ def on_set_message(mqtt_client, userdata, message):
     if "brightness" in payload:
         brightness = str(payload["brightness"])
         print("Set brightness to " + brightness)
-        # conn = Client(address, authkey=b'a secret password')
-        # conn.send(['brightness', int(brightness)])
-        # conn.close()
-        # fullstate = {"state": "ON", "brightness": int(brightness)}
-        # client.publish(state_topic, json.dumps(fullstate), retain=True)
+        # Send brightness to matrix component
+        with Client(address, authkey=b'LAEPYAc1v0GuX0fL') as conn:
+            conn.send(['brightness', int(brightness)])
+            conn.close()
+        fullstate = {"state": "ON", "brightness": int(brightness)}
+        # Save brightness as new default, to remember it at restart
         config.set('DEFAULT', 'brightness', brightness)
         with open(filename, 'w') as configfile:
             config.write(configfile)
             # os.close(configfile)
-            job = manager.RestartUnit('spotipi.service', 'fail')
+            # job = manager.RestartUnit('spotipi.service', 'fail')
+            # Tell homeassistant we updated the state
             fullstate = {"state": "ON", "brightness": int(brightness)}
             mqtt_client.publish(state_topic, json.dumps(fullstate), retain=True)
     elif "state" in payload:

@@ -2,6 +2,8 @@ import time
 import sys
 import logging
 from logging.handlers import RotatingFileHandler
+from threading import Thread
+
 from getSongInfo import getSongInfo
 import requests
 from io import BytesIO
@@ -10,9 +12,18 @@ from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 import os
 import configparser
 from datetime import datetime, timedelta
-
+from multiprocessing.connection import Listener
 from WeatherDisplay import WeatherDisplay
 
+def listen_for_led_control_messages(matrix):
+	address = ('localhost', 6000)  # family is deduced to be 'AF_INET'
+	with Listener(address, authkey=b'LAEPYAc1v0GuX0fL') as listener:
+		while True:
+			with listener.accept() as conn:
+				(command, value) = conn.recv()
+				if command == "brightness":
+					matrix.brightness = int(value)
+				conn.close()
 
 def main() -> int:
 
@@ -68,6 +79,7 @@ def main() -> int:
 	print(default_image)
 	matrix = RGBMatrix(options=options)
 	canvas = matrix.CreateFrameCanvas()
+	Thread(target=listen_for_led_control_messages, args=[matrix]).start()
 
 	weather_disp = WeatherDisplay(
 		lat=lat,
