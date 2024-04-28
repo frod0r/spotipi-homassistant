@@ -17,7 +17,9 @@ def getSongInfo(username, token_path):
       if result is None:
          #print("No song playing")
          return [None, None]
-      else:  
+      else:
+        if result["currently_playing_type"] == "episode":
+          return [None,None] # Podcasts don't have cover art available in currently used API
         song = result["item"]["name"]
         imageURL = result["item"]["album"]["images"][0]["url"]
         return [song, imageURL]
