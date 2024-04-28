@@ -28,14 +28,27 @@ iconMap = {
 
 
 class WeatherDisplay:
-	def __init__(self, lat, lon, units, appid, icon_dir, font, font_small):
+	def __init__(
+			self,
+			lat,
+			lon,
+			units,
+			appid,
+			weather_request_frequency,
+			toggle_frequency,
+			icon_dir,
+			font,
+			font_small
+	):
 		self.query = {
 			'lat': lat, 'lon': lon, 'units': units, 'exclude': 'minutely,alerts',
 			'appid': appid}
+		self.weather_request_frequency = weather_request_frequency # Time in minutes on how often to send a request to the weather api
+		self.toggle_frequency = toggle_frequency # Time in seconds on how often to toggle between displaying temperature and time/ weekdays
 		self.icon_dir = icon_dir
 		self.font = font
 		self.font_small = font_small
-		response = requests.get("https://api.openweathermap.org/data/2.5/onecall", params=self.query, timeout=5)
+		response = requests.get("https://api.openweathermap.org/data/3.0/onecall", params=self.query, timeout=5)
 		self.response_json = response.json()
 		self.last_weather_refresh = datetime.now()
 		self.last_temp_display_toggle = datetime.now()
@@ -49,16 +62,16 @@ class WeatherDisplay:
 			'RGBA')).convert('RGB')
 
 	def refresh_weather(self):
-		response = requests.get("https://api.openweathermap.org/data/2.5/onecall", params=self.query, timeout=5)
+		response = requests.get("https://api.openweathermap.org/data/3.0/onecall", params=self.query, timeout=5)
 		self.response_json = response.json()
 
 	def display_weather_panel(self, canvas):
 		now = datetime.now()
-		if now - self.last_weather_refresh > timedelta(minutes=5):
+		if now - self.last_weather_refresh > timedelta(minutes=self.weather_request_frequency):
 			self.refresh_weather()
 			self.last_weather_refresh = now
 			print('refreshed')
-		if now - self.last_temp_display_toggle > timedelta(seconds=5):
+		if now - self.last_temp_display_toggle > timedelta(seconds=self.toggle_frequency):
 			self.display_temp = ~self.display_temp
 			self.last_temp_display_toggle = now
 		length = self.display_time(canvas, now)

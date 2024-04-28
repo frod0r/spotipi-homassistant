@@ -52,6 +52,9 @@ def main() -> int:
 	lon = config['DEFAULT']['lon']
 	units = config['DEFAULT']['units']
 	appid = config['DEFAULT']['appid']
+	weather_request_frequency = int(config['DEFAULT']['weather_request_frequency'])
+	toggle_frequency = int(config['DEFAULT']['toggle_frequency'])
+
 
 	font = graphics.Font()
 	font_small = graphics.Font()
@@ -66,7 +69,17 @@ def main() -> int:
 	matrix = RGBMatrix(options=options)
 	canvas = matrix.CreateFrameCanvas()
 
-	weather_disp = WeatherDisplay(lat, lon, units, appid, icon_dir, font, font_small)
+	weather_disp = WeatherDisplay(
+		lat=lat,
+		lon=lon,
+		units=units,
+		appid=appid,
+		weather_request_frequency=weather_request_frequency,
+		toggle_frequency=toggle_frequency,
+		icon_dir=icon_dir,
+		font=font,
+		font_small=font_small
+	)
 
 	last_url = ""
 	image_url = None
